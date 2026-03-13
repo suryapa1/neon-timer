@@ -5,163 +5,263 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Neon Timer — Stopwatch, Countdown & Lap Tracker</title>
     <style>
-        :root { --neon: #00f0ff; --pink: #ff2d95; --green: #39ff14; --orange: #ff6b00; --purple: #b44dff; --dark: #0a0a1a; --card: #12122a; }
-        * { box-sizing: border-box; margin: 0; padding: 0; }
-        body { font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace; background: var(--dark); color: #fff; min-height: 100vh; overflow-x: hidden; }
-
-        /* Animated background */
-        .bg-grid { position: fixed; inset: 0; z-index: 0; background-image:
-            linear-gradient(rgba(0,240,255,0.03) 1px, transparent 1px),
-            linear-gradient(90deg, rgba(0,240,255,0.03) 1px, transparent 1px);
-            background-size: 40px 40px;
-            animation: gridMove 20s linear infinite;
+        :root {
+            --accent: #00f0ff; --accent-glow: rgba(0,240,255,0.4);
+            --bg: #000000; --surface: rgba(255,255,255,0.06); --surface-hover: rgba(255,255,255,0.1);
+            --text: #ffffff; --text-dim: rgba(255,255,255,0.4); --text-muted: rgba(255,255,255,0.2);
+            --ring-bg: rgba(255,255,255,0.08); --ring-width: 4;
+            --green: #30d158; --red: #ff453a; --orange: #ff9f0a; --purple: #bf5af2;
+            --font: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Helvetica Neue', sans-serif;
+            --font-mono: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
+            --blur: 40px;
         }
-        @keyframes gridMove { to { background-position: 40px 40px; } }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: var(--font); background: var(--bg); color: var(--text); min-height: 100vh; overflow-x: hidden; -webkit-font-smoothing: antialiased; transition: background 0.8s ease; }
 
-        .container { position: relative; z-index: 1; max-width: 520px; margin: 0 auto; padding: 1rem; }
+        /* ── Animated backgrounds ────────────────────────── */
+        .bg-layer { position: fixed; inset: 0; z-index: 0; transition: opacity 0.8s ease; }
+        .bg-grid { background-image:
+            linear-gradient(var(--text-muted) 1px, transparent 1px),
+            linear-gradient(90deg, var(--text-muted) 1px, transparent 1px);
+            background-size: 60px 60px; opacity: 0.15; animation: gridDrift 30s linear infinite; }
+        @keyframes gridDrift { to { background-position: 60px 60px; } }
 
-        /* Header */
-        .header { text-align: center; padding: 1.5rem 0 1rem; }
-        .header h1 { font-size: 1.4rem; font-weight: 300; letter-spacing: 6px; text-transform: uppercase; color: var(--neon); text-shadow: 0 0 20px rgba(0,240,255,0.5); }
-        .header .subtitle { font-size: 0.65rem; color: #555; letter-spacing: 3px; margin-top: 4px; }
+        .bg-aurora { background:
+            radial-gradient(ellipse 80% 50% at 20% 40%, rgba(0,240,255,0.12) 0%, transparent 70%),
+            radial-gradient(ellipse 60% 60% at 80% 60%, rgba(191,90,242,0.1) 0%, transparent 70%),
+            radial-gradient(ellipse 50% 40% at 50% 90%, rgba(48,209,88,0.08) 0%, transparent 70%);
+            animation: auroraPulse 8s ease-in-out infinite alternate; }
+        @keyframes auroraPulse { 0% { filter: blur(0px); } 100% { filter: blur(30px); transform: scale(1.05); } }
 
-        /* Mode tabs */
-        .modes { display: flex; justify-content: center; gap: 4px; margin-bottom: 1.5rem; }
-        .mode-btn { padding: 8px 20px; border: 1px solid #222; border-radius: 24px; background: transparent; color: #666; font-family: inherit; font-size: 0.75rem; cursor: pointer; letter-spacing: 2px; text-transform: uppercase; transition: all 0.3s; }
-        .mode-btn.active { border-color: var(--neon); color: var(--neon); background: rgba(0,240,255,0.08); box-shadow: 0 0 15px rgba(0,240,255,0.15); }
-        .mode-btn:hover:not(.active) { border-color: #444; color: #999; }
+        .bg-particles-layer { overflow: hidden; }
+        .bg-orb { position: absolute; border-radius: 50%; filter: blur(80px); opacity: 0.15; animation: orbFloat 12s ease-in-out infinite alternate; }
+        .bg-orb:nth-child(1) { width: 400px; height: 400px; background: var(--accent); top: -10%; left: -5%; animation-delay: 0s; }
+        .bg-orb:nth-child(2) { width: 300px; height: 300px; background: var(--purple); bottom: -10%; right: -5%; animation-delay: -4s; }
+        .bg-orb:nth-child(3) { width: 250px; height: 250px; background: var(--green); top: 50%; left: 50%; animation-delay: -8s; }
+        @keyframes orbFloat { 0% { transform: translate(0,0) scale(1); } 100% { transform: translate(30px,-40px) scale(1.2); } }
 
-        /* Main display */
-        .display-ring { position: relative; width: 300px; height: 300px; margin: 0 auto 1.5rem; }
+        .bg-mesh { background: conic-gradient(from 0deg at 50% 50%, rgba(0,240,255,0.06), rgba(191,90,242,0.06), rgba(255,159,10,0.06), rgba(48,209,88,0.06), rgba(0,240,255,0.06)); animation: meshSpin 20s linear infinite; filter: blur(60px); transform: scale(1.5); }
+        @keyframes meshSpin { to { transform: scale(1.5) rotate(360deg); } }
+
+        .bg-none { background: transparent; }
+        .bg-hidden { opacity: 0 !important; pointer-events: none; }
+
+        /* ── Layout ──────────────────────────────────────── */
+        .container { position: relative; z-index: 1; max-width: 480px; margin: 0 auto; padding: 0 1.25rem 2rem; }
+
+        /* ── Top bar ─────────────────────────────────────── */
+        .topbar { display: flex; justify-content: space-between; align-items: center; padding: 1rem 0; }
+        .topbar-left { display: flex; gap: 8px; }
+        .topbar-right { display: flex; gap: 8px; }
+        .icon-btn { width: 36px; height: 36px; border-radius: 50%; border: none; background: var(--surface); color: var(--text-dim); display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 0.9rem; transition: all 0.2s; backdrop-filter: blur(10px); }
+        .icon-btn:hover { background: var(--surface-hover); color: var(--text); }
+        .icon-btn.active { background: var(--accent); color: #000; }
+
+        /* ── Header ──────────────────────────────────────── */
+        .header { text-align: center; margin-bottom: 0.5rem; }
+        .header h1 { font-size: 0.72rem; font-weight: 500; letter-spacing: 4px; text-transform: uppercase; color: var(--text-dim); }
+
+        /* ── Mode tabs (Apple segmented control) ─────────── */
+        .segmented { display: flex; background: var(--surface); border-radius: 10px; padding: 2px; margin: 0 auto 1.8rem; max-width: 280px; backdrop-filter: blur(var(--blur)); }
+        .seg-btn { flex: 1; padding: 8px 0; border: none; border-radius: 8px; background: transparent; color: var(--text-dim); font-family: var(--font); font-size: 0.78rem; font-weight: 500; cursor: pointer; transition: all 0.3s; }
+        .seg-btn.active { background: var(--surface-hover); color: var(--text); box-shadow: 0 1px 4px rgba(0,0,0,0.3); }
+
+        /* ── Main display ────────────────────────────────── */
+        .display-ring { position: relative; width: 280px; height: 280px; margin: 0 auto 2rem; }
         .ring-svg { position: absolute; inset: 0; width: 100%; height: 100%; transform: rotate(-90deg); }
-        .ring-bg { fill: none; stroke: #1a1a3a; stroke-width: 3; }
-        .ring-progress { fill: none; stroke: var(--neon); stroke-width: 3; stroke-linecap: round; stroke-dasharray: 880; stroke-dashoffset: 880; transition: stroke-dashoffset 0.1s linear, stroke 0.3s; filter: drop-shadow(0 0 6px var(--neon)); }
+        .ring-bg { fill: none; stroke: var(--ring-bg); stroke-width: var(--ring-width); }
+        .ring-progress { fill: none; stroke: var(--accent); stroke-width: var(--ring-width); stroke-linecap: round;
+            stroke-dasharray: 854; stroke-dashoffset: 854; transition: stroke-dashoffset 0.1s linear; filter: drop-shadow(0 0 8px var(--accent-glow)); }
+        .ring-glow { fill: none; stroke: var(--accent); stroke-width: 12; stroke-linecap: round;
+            stroke-dasharray: 854; stroke-dashoffset: 854; opacity: 0.15; filter: blur(8px); }
 
         .display-inner { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; }
-        .time-display { font-size: 3.2rem; font-weight: 200; letter-spacing: 2px; color: #fff; text-shadow: 0 0 30px rgba(0,240,255,0.3); }
-        .time-display .ms { font-size: 1.6rem; color: var(--neon); opacity: 0.8; }
-        .time-label { font-size: 0.65rem; color: #555; letter-spacing: 3px; margin-top: 4px; }
+        .time-display { font-family: var(--font-mono); font-size: 3rem; font-weight: 200; letter-spacing: 1px; color: var(--text); }
+        .time-display .ms { font-size: 1.4rem; color: var(--accent); opacity: 0.7; margin-left: 2px; }
+        .time-label { font-size: 0.6rem; color: var(--text-dim); letter-spacing: 3px; margin-top: 6px; font-weight: 500; }
 
-        /* Particles */
         .particles { position: absolute; inset: 0; pointer-events: none; }
-        .particle { position: absolute; width: 3px; height: 3px; border-radius: 50%; background: var(--neon); opacity: 0; }
 
-        /* Controls */
-        .controls { display: flex; justify-content: center; gap: 12px; margin-bottom: 1.5rem; }
-        .ctrl-btn { width: 56px; height: 56px; border-radius: 50%; border: 2px solid; display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 1.2rem; transition: all 0.25s; background: transparent; }
-        .ctrl-btn:active { transform: scale(0.92); }
-        .btn-start { border-color: var(--green); color: var(--green); }
-        .btn-start:hover { background: rgba(57,255,20,0.12); box-shadow: 0 0 20px rgba(57,255,20,0.3); }
-        .btn-start.running { border-color: var(--orange); color: var(--orange); }
-        .btn-start.running:hover { background: rgba(255,107,0,0.12); box-shadow: 0 0 20px rgba(255,107,0,0.3); }
-        .btn-lap { border-color: var(--purple); color: var(--purple); }
-        .btn-lap:hover { background: rgba(180,77,255,0.12); box-shadow: 0 0 20px rgba(180,77,255,0.3); }
-        .btn-reset { border-color: var(--pink); color: var(--pink); }
-        .btn-reset:hover { background: rgba(255,45,149,0.12); box-shadow: 0 0 20px rgba(255,45,149,0.3); }
-        .btn-disabled { opacity: 0.3; pointer-events: none; }
+        /* ── Controls (Apple Watch style) ────────────────── */
+        .controls { display: flex; justify-content: center; align-items: center; gap: 24px; margin-bottom: 2rem; }
+        .ctrl-btn { width: 64px; height: 64px; border-radius: 50%; border: none; display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 1.3rem; transition: all 0.2s; position: relative; }
+        .ctrl-btn::before { content: ''; position: absolute; inset: -3px; border-radius: 50%; border: 1.5px solid rgba(255,255,255,0.1); }
+        .ctrl-btn:active { transform: scale(0.9); }
+        .btn-start { background: rgba(48,209,88,0.2); color: var(--green); }
+        .btn-start::before { border-color: rgba(48,209,88,0.3); }
+        .btn-start:hover { background: rgba(48,209,88,0.3); }
+        .btn-start.running { background: rgba(255,159,10,0.2); color: var(--orange); }
+        .btn-start.running::before { border-color: rgba(255,159,10,0.3); }
+        .btn-start.running:hover { background: rgba(255,159,10,0.3); }
+        .btn-lap { background: var(--surface); color: var(--text-dim); }
+        .btn-lap:hover { background: var(--surface-hover); color: var(--text); }
+        .btn-reset { background: rgba(255,69,58,0.15); color: var(--red); }
+        .btn-reset::before { border-color: rgba(255,69,58,0.2); }
+        .btn-reset:hover { background: rgba(255,69,58,0.25); }
+        .btn-disabled { opacity: 0.25; pointer-events: none; }
+        .btn-main { width: 76px; height: 76px; font-size: 1.5rem; }
 
-        /* Countdown presets */
-        .presets { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; margin-bottom: 1rem; }
-        .preset { padding: 5px 14px; border: 1px solid #222; border-radius: 16px; background: transparent; color: #777; font-family: inherit; font-size: 0.72rem; cursor: pointer; transition: all 0.2s; }
-        .preset:hover { border-color: var(--pink); color: var(--pink); }
-        .preset.active { border-color: var(--pink); color: var(--pink); background: rgba(255,45,149,0.1); }
+        /* ── Countdown presets ───────────────────────────── */
+        .cd-section { margin-bottom: 1.5rem; }
+        .presets { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; margin-bottom: 0.75rem; }
+        .preset { padding: 6px 16px; border: none; border-radius: 20px; background: var(--surface); color: var(--text-dim); font-family: var(--font); font-size: 0.75rem; font-weight: 500; cursor: pointer; transition: all 0.2s; backdrop-filter: blur(10px); }
+        .preset:hover { background: var(--surface-hover); color: var(--text); }
+        .preset.active { background: var(--accent); color: #000; }
 
-        /* Custom time input */
-        .custom-input { display: flex; justify-content: center; gap: 4px; margin-bottom: 1rem; }
-        .time-input { width: 52px; padding: 6px; border: 1px solid #222; border-radius: 8px; background: var(--card); color: var(--neon); font-family: inherit; font-size: 0.85rem; text-align: center; outline: none; }
-        .time-input:focus { border-color: var(--neon); box-shadow: 0 0 10px rgba(0,240,255,0.2); }
-        .time-sep { color: #444; font-size: 1.2rem; line-height: 32px; }
+        .custom-input { display: flex; justify-content: center; align-items: center; gap: 2px; }
+        .time-input { width: 56px; padding: 8px; border: none; border-radius: 10px; background: var(--surface); color: var(--text); font-family: var(--font-mono); font-size: 1rem; text-align: center; outline: none; transition: all 0.2s; -moz-appearance: textfield; }
+        .time-input::-webkit-inner-spin-button { -webkit-appearance: none; }
+        .time-input:focus { background: var(--surface-hover); box-shadow: 0 0 0 2px var(--accent); }
+        .time-sep { color: var(--text-muted); font-size: 1.2rem; font-weight: 300; padding: 0 2px; }
+        .time-unit { font-size: 0.55rem; color: var(--text-dim); letter-spacing: 1px; text-transform: uppercase; text-align: center; margin-top: 2px; }
 
-        /* Laps */
-        .laps { background: var(--card); border-radius: 12px; overflow: hidden; }
-        .laps-header { display: flex; justify-content: space-between; padding: 10px 16px; font-size: 0.68rem; color: #555; letter-spacing: 2px; text-transform: uppercase; border-bottom: 1px solid #1a1a3a; }
-        .lap-row { display: grid; grid-template-columns: 40px 1fr 1fr 40px; gap: 8px; padding: 8px 16px; border-bottom: 1px solid #111; font-size: 0.78rem; align-items: center; transition: background 0.2s; animation: lapIn 0.3s ease-out; }
-        .lap-row:hover { background: rgba(0,240,255,0.03); }
-        @keyframes lapIn { from { opacity: 0; transform: translateX(-10px); } to { opacity: 1; transform: none; } }
-        .lap-num { color: #555; font-size: 0.68rem; }
-        .lap-time { color: var(--neon); }
-        .lap-delta { color: #666; text-align: right; }
-        .lap-best { color: var(--green); }
-        .lap-worst { color: var(--pink); }
-        .lap-bar { height: 2px; border-radius: 1px; background: var(--neon); opacity: 0.4; transition: width 0.3s; }
+        /* ── Stats ───────────────────────────────────────── */
+        .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 1.5rem; }
+        .stat { background: var(--surface); border-radius: 12px; padding: 10px 8px; text-align: center; backdrop-filter: blur(var(--blur)); }
+        .stat-val { font-family: var(--font-mono); font-size: 0.8rem; color: var(--accent); font-weight: 500; }
+        .stat-label { font-size: 0.55rem; color: var(--text-dim); letter-spacing: 1px; text-transform: uppercase; margin-top: 2px; }
 
-        /* Alarm animation */
+        /* ── Laps ────────────────────────────────────────── */
+        .laps { background: var(--surface); border-radius: 16px; overflow: hidden; backdrop-filter: blur(var(--blur)); }
+        .laps-header { display: grid; grid-template-columns: 36px 1fr 1fr 36px; gap: 8px; padding: 10px 16px; font-size: 0.6rem; color: var(--text-dim); letter-spacing: 1.5px; text-transform: uppercase; border-bottom: 1px solid rgba(255,255,255,0.06); }
+        .lap-row { display: grid; grid-template-columns: 36px 1fr 1fr 36px; gap: 8px; padding: 10px 16px; font-size: 0.78rem; align-items: center; border-bottom: 1px solid rgba(255,255,255,0.03); animation: lapSlide 0.3s ease-out; }
+        @keyframes lapSlide { from { opacity: 0; transform: translateY(-8px); } }
+        .lap-num { color: var(--text-dim); font-size: 0.65rem; font-weight: 500; }
+        .lap-time { font-family: var(--font-mono); color: var(--text); font-weight: 500; }
+        .lap-delta { font-family: var(--font-mono); color: var(--text-dim); text-align: right; font-size: 0.72rem; }
+        .lap-best { color: var(--green) !important; }
+        .lap-worst { color: var(--red) !important; }
+        .lap-bar-wrap { height: 3px; border-radius: 2px; background: rgba(255,255,255,0.06); overflow: hidden; }
+        .lap-bar { height: 100%; border-radius: 2px; background: var(--accent); transition: width 0.4s ease; }
+
+        /* ── Settings panel (Apple sheet style) ──────────── */
+        .settings-overlay { position: fixed; inset: 0; z-index: 100; background: rgba(0,0,0,0.6); backdrop-filter: blur(20px); opacity: 0; pointer-events: none; transition: opacity 0.35s ease; }
+        .settings-overlay.open { opacity: 1; pointer-events: all; }
+        .settings-sheet { position: fixed; bottom: 0; left: 0; right: 0; z-index: 101; background: rgba(30,30,30,0.95); backdrop-filter: blur(var(--blur)); border-radius: 20px 20px 0 0; padding: 0 1.25rem 2rem; max-height: 85vh; overflow-y: auto; transform: translateY(100%); transition: transform 0.4s cubic-bezier(0.32,0.72,0,1); }
+        .settings-overlay.open + .settings-sheet,
+        .settings-sheet.open { transform: translateY(0); }
+        .sheet-handle { width: 36px; height: 4px; background: rgba(255,255,255,0.2); border-radius: 2px; margin: 10px auto 16px; }
+        .sheet-title { font-size: 1.1rem; font-weight: 600; text-align: center; margin-bottom: 1.2rem; }
+        .settings-group { margin-bottom: 1.5rem; }
+        .group-label { font-size: 0.65rem; color: var(--text-dim); letter-spacing: 2px; text-transform: uppercase; margin-bottom: 8px; font-weight: 500; }
+
+        /* Skin cards */
+        .skin-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
+        .skin-card { border-radius: 14px; padding: 14px; cursor: pointer; border: 2px solid transparent; transition: all 0.25s; position: relative; overflow: hidden; min-height: 90px; display: flex; flex-direction: column; justify-content: flex-end; }
+        .skin-card:hover { transform: scale(1.02); }
+        .skin-card.active { border-color: var(--accent); }
+        .skin-card.active::after { content: ''; position: absolute; top: 8px; right: 8px; width: 20px; height: 20px; border-radius: 50%; background: var(--accent); display: flex; align-items: center; justify-content: center; }
+        .skin-name { font-size: 0.75rem; font-weight: 600; position: relative; z-index: 1; }
+        .skin-desc { font-size: 0.6rem; opacity: 0.6; position: relative; z-index: 1; }
+
+        .skin-midnight { background: linear-gradient(135deg, #0a0a1a, #1a1a3a); color: #00f0ff; }
+        .skin-frost { background: linear-gradient(135deg, #e8ecf1, #f8f9fa); color: #1d1d1f; }
+        .skin-sunset { background: linear-gradient(135deg, #1a0a1e, #2d1b3d, #1a0a0a); color: #ff9f0a; }
+        .skin-forest { background: linear-gradient(135deg, #0a1a0f, #0f2918); color: #30d158; }
+        .skin-ocean { background: linear-gradient(135deg, #0a1628, #0f2840); color: #64d2ff; }
+        .skin-rose { background: linear-gradient(135deg, #1a0a10, #2d0f1a); color: #ff6b8a; }
+
+        /* Accent color picks */
+        .color-row { display: flex; gap: 8px; flex-wrap: wrap; }
+        .color-pick { width: 36px; height: 36px; border-radius: 50%; cursor: pointer; border: 2px solid transparent; transition: all 0.2s; position: relative; }
+        .color-pick:hover { transform: scale(1.15); }
+        .color-pick.active { border-color: #fff; }
+        .color-pick.active::after { content: ''; position: absolute; inset: 4px; border-radius: 50%; border: 2px solid rgba(0,0,0,0.3); }
+
+        /* Background style picks */
+        .bg-picks { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+        .bg-pick { height: 48px; border-radius: 10px; cursor: pointer; border: 2px solid transparent; transition: all 0.2s; overflow: hidden; position: relative; }
+        .bg-pick:hover { transform: scale(1.03); }
+        .bg-pick.active { border-color: var(--accent); }
+        .bg-pick-label { position: absolute; bottom: 4px; left: 0; right: 0; text-align: center; font-size: 0.55rem; color: rgba(255,255,255,0.7); font-weight: 500; letter-spacing: 1px; }
+        .bg-p-grid { background: linear-gradient(135deg,#0a0a1a,#111) }
+        .bg-p-aurora { background: linear-gradient(135deg,#051520,#0a0a20,#100520); }
+        .bg-p-orbs { background: linear-gradient(135deg,#080818,#0a0f1a); }
+        .bg-p-mesh { background: conic-gradient(from 0deg, rgba(0,240,255,0.15),rgba(191,90,242,0.15),rgba(255,159,10,0.15),rgba(48,209,88,0.15),rgba(0,240,255,0.15)); filter: blur(4px); }
+        .bg-p-clean { background: #000; }
+
+        /* Ring style picks */
+        .ring-picks { display: flex; gap: 8px; }
+        .ring-pick { flex: 1; height: 48px; border-radius: 10px; background: var(--surface); cursor: pointer; border: 2px solid transparent; transition: all 0.2s; display: flex; align-items: center; justify-content: center; }
+        .ring-pick:hover { background: var(--surface-hover); }
+        .ring-pick.active { border-color: var(--accent); }
+        .ring-pick svg { width: 32px; height: 32px; }
+        .ring-pick-label { font-size: 0.55rem; color: var(--text-dim); text-align: center; margin-top: 2px; }
+
+        /* Font style */
+        .font-picks { display: flex; gap: 8px; }
+        .font-pick { flex: 1; padding: 10px; border-radius: 10px; background: var(--surface); cursor: pointer; border: 2px solid transparent; transition: all 0.2s; text-align: center; }
+        .font-pick:hover { background: var(--surface-hover); }
+        .font-pick.active { border-color: var(--accent); }
+        .font-pick .preview { font-size: 1.1rem; margin-bottom: 2px; }
+        .font-pick .label { font-size: 0.55rem; color: var(--text-dim); }
+
         .alarm-flash { animation: alarmPulse 0.5s ease-in-out infinite alternate; }
         @keyframes alarmPulse { from { opacity: 1; } to { opacity: 0.3; } }
-
-        /* Stats bar */
-        .stats { display: flex; justify-content: center; gap: 1.5rem; margin-bottom: 1rem; }
-        .stat { text-align: center; }
-        .stat-val { font-size: 0.9rem; color: var(--neon); }
-        .stat-label { font-size: 0.58rem; color: #444; letter-spacing: 2px; text-transform: uppercase; }
-
-        /* Sound toggle */
-        .sound-toggle { position: fixed; top: 12px; right: 12px; z-index: 10; padding: 6px 10px; border: 1px solid #222; border-radius: 16px; background: transparent; color: #555; font-size: 0.72rem; cursor: pointer; font-family: inherit; }
-        .sound-toggle.on { border-color: var(--green); color: var(--green); }
-
-        /* Theme picker */
-        .themes { position: fixed; top: 12px; left: 12px; z-index: 10; display: flex; gap: 4px; }
-        .theme-dot { width: 14px; height: 14px; border-radius: 50%; cursor: pointer; border: 2px solid transparent; transition: all 0.2s; }
-        .theme-dot:hover, .theme-dot.active { border-color: #fff; transform: scale(1.2); }
-        .theme-dot.t-cyan { background: #00f0ff; }
-        .theme-dot.t-pink { background: #ff2d95; }
-        .theme-dot.t-green { background: #39ff14; }
-        .theme-dot.t-gold { background: #ffd700; }
 
         .hidden { display: none; }
 
         @media (max-width: 400px) {
-            .time-display { font-size: 2.5rem; }
-            .display-ring { width: 240px; height: 240px; }
-            .ctrl-btn { width: 48px; height: 48px; }
+            .time-display { font-size: 2.4rem; }
+            .display-ring { width: 230px; height: 230px; }
+            .ctrl-btn { width: 54px; height: 54px; }
+            .btn-main { width: 66px; height: 66px; }
+            .skin-grid { grid-template-columns: 1fr; }
         }
     </style>
 </head>
 <body>
-    <div class="bg-grid"></div>
-    <div class="themes">
-        <div class="theme-dot t-cyan active" onclick="setTheme('#00f0ff')"></div>
-        <div class="theme-dot t-pink" onclick="setTheme('#ff2d95')"></div>
-        <div class="theme-dot t-green" onclick="setTheme('#39ff14')"></div>
-        <div class="theme-dot t-gold" onclick="setTheme('#ffd700')"></div>
-    </div>
-    <button class="sound-toggle" id="soundBtn" onclick="toggleSound()">Sound OFF</button>
+    <!-- Backgrounds -->
+    <div class="bg-layer bg-aurora" id="bgAurora"></div>
+    <div class="bg-layer bg-grid bg-hidden" id="bgGrid"></div>
+    <div class="bg-layer bg-particles-layer bg-hidden" id="bgOrbs"><div class="bg-orb"></div><div class="bg-orb"></div><div class="bg-orb"></div></div>
+    <div class="bg-layer bg-mesh bg-hidden" id="bgMesh"></div>
 
     <div class="container">
-        <div class="header">
-            <h1>Neon Timer</h1>
-            <div class="subtitle">Stopwatch &bull; Countdown &bull; Lap Tracker</div>
+        <!-- Top bar -->
+        <div class="topbar">
+            <div class="topbar-left">
+                <button class="icon-btn" id="soundBtn" onclick="toggleSound()" title="Sound">&#x266A;</button>
+            </div>
+            <div class="header"><h1>Neon Timer</h1></div>
+            <div class="topbar-right">
+                <button class="icon-btn" onclick="openSettings()" title="Themes & Settings">&#x2699;</button>
+            </div>
         </div>
 
-        <div class="modes">
-            <button class="mode-btn active" onclick="setMode('stopwatch',this)">Stopwatch</button>
-            <button class="mode-btn" onclick="setMode('countdown',this)">Countdown</button>
+        <!-- Mode switch -->
+        <div class="segmented">
+            <button class="seg-btn active" onclick="setMode('stopwatch',this)">Stopwatch</button>
+            <button class="seg-btn" onclick="setMode('countdown',this)">Countdown</button>
         </div>
 
-        <div id="countdownSettings" class="hidden">
+        <!-- Countdown presets -->
+        <div id="countdownSettings" class="cd-section hidden">
             <div class="presets">
                 <button class="preset" onclick="setPreset(30,this)">30s</button>
-                <button class="preset" onclick="setPreset(60,this)">1m</button>
-                <button class="preset" onclick="setPreset(120,this)">2m</button>
-                <button class="preset" onclick="setPreset(300,this)">5m</button>
-                <button class="preset" onclick="setPreset(600,this)">10m</button>
-                <button class="preset" onclick="setPreset(900,this)">15m</button>
-                <button class="preset" onclick="setPreset(1800,this)">30m</button>
-                <button class="preset" onclick="setPreset(3600,this)">1h</button>
+                <button class="preset" onclick="setPreset(60,this)">1 min</button>
+                <button class="preset" onclick="setPreset(120,this)">2 min</button>
+                <button class="preset" onclick="setPreset(300,this)">5 min</button>
+                <button class="preset" onclick="setPreset(600,this)">10 min</button>
+                <button class="preset" onclick="setPreset(900,this)">15 min</button>
+                <button class="preset" onclick="setPreset(1800,this)">30 min</button>
+                <button class="preset" onclick="setPreset(3600,this)">1 hr</button>
             </div>
             <div class="custom-input">
-                <input class="time-input" id="inH" type="number" min="0" max="23" value="0" placeholder="H">
+                <div><input class="time-input" id="inH" type="number" min="0" max="23" value="0"><div class="time-unit">hours</div></div>
                 <span class="time-sep">:</span>
-                <input class="time-input" id="inM" type="number" min="0" max="59" value="5" placeholder="M">
+                <div><input class="time-input" id="inM" type="number" min="0" max="59" value="5"><div class="time-unit">min</div></div>
                 <span class="time-sep">:</span>
-                <input class="time-input" id="inS" type="number" min="0" max="59" value="0" placeholder="S">
+                <div><input class="time-input" id="inS" type="number" min="0" max="59" value="0"><div class="time-unit">sec</div></div>
             </div>
         </div>
 
+        <!-- Ring display -->
         <div class="display-ring" id="displayRing">
-            <svg class="ring-svg" viewBox="0 0 300 300">
-                <circle class="ring-bg" cx="150" cy="150" r="140" />
-                <circle class="ring-progress" id="ringProgress" cx="150" cy="150" r="140" />
+            <svg class="ring-svg" viewBox="0 0 280 280">
+                <circle class="ring-bg" cx="140" cy="140" r="136" />
+                <circle class="ring-glow" id="ringGlow" cx="140" cy="140" r="136" />
+                <circle class="ring-progress" id="ringProgress" cx="140" cy="140" r="136" />
             </svg>
             <div class="particles" id="particles"></div>
             <div class="display-inner">
@@ -170,329 +270,361 @@
             </div>
         </div>
 
+        <!-- Stats -->
         <div class="stats hidden" id="statsBar">
-            <div class="stat"><div class="stat-val" id="statTotal">00:00</div><div class="stat-label">Total</div></div>
+            <div class="stat"><div class="stat-val" id="statTotal">--</div><div class="stat-label">Total</div></div>
             <div class="stat"><div class="stat-val" id="statAvg">--</div><div class="stat-label">Avg Lap</div></div>
             <div class="stat"><div class="stat-val" id="statBest">--</div><div class="stat-label">Best</div></div>
             <div class="stat"><div class="stat-val" id="statLaps">0</div><div class="stat-label">Laps</div></div>
         </div>
 
+        <!-- Controls -->
         <div class="controls">
             <button class="ctrl-btn btn-reset btn-disabled" id="btnReset" onclick="doReset()" title="Reset">&#x21bb;</button>
-            <button class="ctrl-btn btn-start" id="btnStart" onclick="doStartPause()" title="Start">&#x25B6;</button>
-            <button class="ctrl-btn btn-lap btn-disabled" id="btnLap" onclick="doLap()" title="Lap">&#x2691;</button>
+            <button class="ctrl-btn btn-main btn-start" id="btnStart" onclick="doStartPause()" title="Start">&#x25B6;</button>
+            <button class="ctrl-btn btn-lap btn-disabled" id="btnLap" onclick="doLap()" title="Lap">&#x25C9;</button>
         </div>
 
+        <!-- Laps -->
         <div class="laps hidden" id="lapsPanel">
-            <div class="laps-header">
-                <span>#</span><span>Lap Time</span><span>Split</span><span></span>
-            </div>
+            <div class="laps-header"><span>#</span><span>Lap</span><span style="text-align:right">Split</span><span></span></div>
             <div id="lapsBody"></div>
+        </div>
+    </div>
+
+    <!-- Settings Sheet -->
+    <div class="settings-overlay" id="settingsOverlay" onclick="closeSettings()"></div>
+    <div class="settings-sheet" id="settingsSheet">
+        <div class="sheet-handle"></div>
+        <div class="sheet-title">Appearance</div>
+
+        <div class="settings-group">
+            <div class="group-label">Screen Skin</div>
+            <div class="skin-grid">
+                <div class="skin-card skin-midnight active" onclick="applySkin('midnight',this)">
+                    <div class="skin-name">Midnight</div><div class="skin-desc">Deep dark neon</div>
+                </div>
+                <div class="skin-card skin-frost" onclick="applySkin('frost',this)">
+                    <div class="skin-name">Frost</div><div class="skin-desc">Clean light mode</div>
+                </div>
+                <div class="skin-card skin-sunset" onclick="applySkin('sunset',this)">
+                    <div class="skin-name">Sunset</div><div class="skin-desc">Warm purple haze</div>
+                </div>
+                <div class="skin-card skin-forest" onclick="applySkin('forest',this)">
+                    <div class="skin-name">Forest</div><div class="skin-desc">Deep green calm</div>
+                </div>
+                <div class="skin-card skin-ocean" onclick="applySkin('ocean',this)">
+                    <div class="skin-name">Ocean</div><div class="skin-desc">Cool blue depth</div>
+                </div>
+                <div class="skin-card skin-rose" onclick="applySkin('rose',this)">
+                    <div class="skin-name">Ros&eacute;</div><div class="skin-desc">Elegant warmth</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="settings-group">
+            <div class="group-label">Accent Color</div>
+            <div class="color-row">
+                <div class="color-pick active" style="background:#00f0ff" onclick="setAccent('#00f0ff','rgba(0,240,255,0.4)',this)"></div>
+                <div class="color-pick" style="background:#ff2d95" onclick="setAccent('#ff2d95','rgba(255,45,149,0.4)',this)"></div>
+                <div class="color-pick" style="background:#30d158" onclick="setAccent('#30d158','rgba(48,209,88,0.4)',this)"></div>
+                <div class="color-pick" style="background:#ff9f0a" onclick="setAccent('#ff9f0a','rgba(255,159,10,0.4)',this)"></div>
+                <div class="color-pick" style="background:#bf5af2" onclick="setAccent('#bf5af2','rgba(191,90,242,0.4)',this)"></div>
+                <div class="color-pick" style="background:#64d2ff" onclick="setAccent('#64d2ff','rgba(100,210,255,0.4)',this)"></div>
+                <div class="color-pick" style="background:#ff6b8a" onclick="setAccent('#ff6b8a','rgba(255,107,138,0.4)',this)"></div>
+                <div class="color-pick" style="background:#ffd700" onclick="setAccent('#ffd700','rgba(255,215,0,0.4)',this)"></div>
+            </div>
+        </div>
+
+        <div class="settings-group">
+            <div class="group-label">Background</div>
+            <div class="bg-picks">
+                <div class="bg-pick bg-p-aurora active" onclick="setBg('aurora',this)"><span class="bg-pick-label">Aurora</span></div>
+                <div class="bg-pick bg-p-grid" onclick="setBg('grid',this)"><span class="bg-pick-label">Grid</span></div>
+                <div class="bg-pick bg-p-orbs" onclick="setBg('orbs',this)"><span class="bg-pick-label">Orbs</span></div>
+                <div class="bg-pick bg-p-mesh" onclick="setBg('mesh',this)"><span class="bg-pick-label">Mesh</span></div>
+                <div class="bg-pick bg-p-clean" onclick="setBg('clean',this)"><span class="bg-pick-label">Clean</span></div>
+            </div>
+        </div>
+
+        <div class="settings-group">
+            <div class="group-label">Ring Style</div>
+            <div class="ring-picks">
+                <div class="ring-pick active" onclick="setRingStyle('thin',this)">
+                    <div><svg viewBox="0 0 32 32"><circle cx="16" cy="16" r="13" fill="none" stroke="var(--accent)" stroke-width="1.5" opacity="0.3"/><circle cx="16" cy="16" r="13" fill="none" stroke="var(--accent)" stroke-width="1.5" stroke-dasharray="20 62" stroke-linecap="round"/></svg><div class="ring-pick-label">Thin</div></div>
+                </div>
+                <div class="ring-pick" onclick="setRingStyle('bold',this)">
+                    <div><svg viewBox="0 0 32 32"><circle cx="16" cy="16" r="12" fill="none" stroke="var(--accent)" stroke-width="4" opacity="0.3"/><circle cx="16" cy="16" r="12" fill="none" stroke="var(--accent)" stroke-width="4" stroke-dasharray="20 56" stroke-linecap="round"/></svg><div class="ring-pick-label">Bold</div></div>
+                </div>
+                <div class="ring-pick" onclick="setRingStyle('dots',this)">
+                    <div><svg viewBox="0 0 32 32"><circle cx="16" cy="16" r="13" fill="none" stroke="var(--accent)" stroke-width="2" stroke-dasharray="2 4" opacity="0.3"/><circle cx="16" cy="16" r="13" fill="none" stroke="var(--accent)" stroke-width="2" stroke-dasharray="2 4" stroke-dashoffset="40"/></svg><div class="ring-pick-label">Dots</div></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="settings-group">
+            <div class="group-label">Font</div>
+            <div class="font-picks">
+                <div class="font-pick active" onclick="setFont('mono',this)"><div class="preview" style="font-family:'SF Mono',monospace">08:42</div><div class="label">Mono</div></div>
+                <div class="font-pick" onclick="setFont('sans',this)"><div class="preview" style="font-family:-apple-system,sans-serif;font-weight:200">08:42</div><div class="label">Sans</div></div>
+                <div class="font-pick" onclick="setFont('display',this)"><div class="preview" style="font-family:Georgia,serif;font-weight:300;font-style:italic">08:42</div><div class="label">Serif</div></div>
+            </div>
         </div>
     </div>
 
     <script>
     // ── State ──────────────────────────────────────────────
-    let mode = 'stopwatch'; // stopwatch | countdown
-    let state = 'stopped';  // stopped | running | paused | finished
-    let elapsed = 0;        // ms elapsed (stopwatch) or remaining (countdown)
-    let countdownTotal = 300000; // ms total for countdown
-    let startTs = 0;
-    let pauseElapsed = 0;
-    let animFrame = null;
-    let laps = [];
-    let soundOn = false;
-    let neonColor = '#00f0ff';
+    let mode = 'stopwatch', state = 'stopped', elapsed = 0, countdownTotal = 300000;
+    let startTs = 0, pauseElapsed = 0, animFrame = null, laps = [];
+    let soundOn = false, currentAccent = '#00f0ff';
+    const CIRC = 2 * Math.PI * 136;
 
-    const CIRC = 2 * Math.PI * 140; // ~879.6
-
-    // ── Audio (Web Audio API — no external files) ─────────
+    // ── Audio ─────────────────────────────────────────────
     let audioCtx = null;
     function beep(freq, dur, type='sine') {
         if (!soundOn) return;
         if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-        const osc = audioCtx.createOscillator();
-        const gain = audioCtx.createGain();
-        osc.type = type;
-        osc.frequency.value = freq;
-        gain.gain.setValueAtTime(0.15, audioCtx.currentTime);
+        const osc = audioCtx.createOscillator(), gain = audioCtx.createGain();
+        osc.type = type; osc.frequency.value = freq;
+        gain.gain.setValueAtTime(0.12, audioCtx.currentTime);
         gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + dur);
         osc.connect(gain).connect(audioCtx.destination);
         osc.start(); osc.stop(audioCtx.currentTime + dur);
     }
-    function tickSound() { beep(800, 0.05); }
-    function lapSound() { beep(1200, 0.1); beep(1600, 0.15); }
-    function alarmSound() {
-        for (let i = 0; i < 5; i++) setTimeout(() => beep(1800 - i*200, 0.2, 'square'), i * 250);
-    }
+    function lapSound() { beep(1200, 0.08); setTimeout(()=>beep(1600,0.12),80); }
+    function alarmSound() { for (let i=0;i<5;i++) setTimeout(()=>beep(1800-i*200,0.2,'square'),i*250); }
 
-    // ── Theme ─────────────────────────────────────────────
-    function setTheme(color) {
-        neonColor = color;
-        document.documentElement.style.setProperty('--neon', color);
-        document.querySelectorAll('.theme-dot').forEach(d => d.classList.remove('active'));
-        document.querySelector(`.theme-dot[onclick*="${color}"]`)?.classList.add('active');
-        const ring = document.getElementById('ringProgress');
-        ring.style.stroke = color;
-        ring.style.filter = `drop-shadow(0 0 6px ${color})`;
-    }
+    // ── Settings panel ────────────────────────────────────
+    function openSettings() { document.getElementById('settingsOverlay').classList.add('open'); document.getElementById('settingsSheet').classList.add('open'); }
+    function closeSettings() { document.getElementById('settingsOverlay').classList.remove('open'); document.getElementById('settingsSheet').classList.remove('open'); }
 
     function toggleSound() {
         soundOn = !soundOn;
         const btn = document.getElementById('soundBtn');
-        btn.textContent = soundOn ? 'Sound ON' : 'Sound OFF';
-        btn.classList.toggle('on', soundOn);
-        if (soundOn) { tickSound(); } // test beep
+        btn.classList.toggle('active', soundOn);
+        btn.title = soundOn ? 'Sound ON' : 'Sound OFF';
+        if (soundOn) beep(800, 0.05);
+    }
+
+    // ── Skins ─────────────────────────────────────────────
+    const SKINS = {
+        midnight: { bg:'#000000', surface:'rgba(255,255,255,0.06)', text:'#ffffff', textDim:'rgba(255,255,255,0.4)', ringBg:'rgba(255,255,255,0.08)' },
+        frost:    { bg:'#f5f5f7', surface:'rgba(0,0,0,0.05)', text:'#1d1d1f', textDim:'rgba(0,0,0,0.4)', ringBg:'rgba(0,0,0,0.08)' },
+        sunset:   { bg:'#110a16', surface:'rgba(255,255,255,0.06)', text:'#ffffff', textDim:'rgba(255,255,255,0.35)', ringBg:'rgba(255,255,255,0.08)' },
+        forest:   { bg:'#060f09', surface:'rgba(255,255,255,0.06)', text:'#e0f0e4', textDim:'rgba(255,255,255,0.3)', ringBg:'rgba(255,255,255,0.08)' },
+        ocean:    { bg:'#060d18', surface:'rgba(255,255,255,0.06)', text:'#e0f0ff', textDim:'rgba(255,255,255,0.35)', ringBg:'rgba(255,255,255,0.08)' },
+        rose:     { bg:'#10060a', surface:'rgba(255,255,255,0.06)', text:'#ffe0ea', textDim:'rgba(255,255,255,0.35)', ringBg:'rgba(255,255,255,0.08)' },
+    };
+    function applySkin(name, el) {
+        const s = SKINS[name]; if (!s) return;
+        const r = document.documentElement.style;
+        r.setProperty('--bg', s.bg); r.setProperty('--surface', s.surface);
+        r.setProperty('--text', s.text); r.setProperty('--text-dim', s.textDim);
+        r.setProperty('--ring-bg', s.ringBg); r.setProperty('--text-muted', s.textDim.replace('0.4','0.15').replace('0.35','0.12').replace('0.3','0.1'));
+        document.body.style.background = s.bg;
+        document.querySelectorAll('.skin-card').forEach(c => c.classList.remove('active'));
+        el.classList.add('active');
+        localStorage.setItem('nt_skin', name);
+    }
+
+    function setAccent(color, glow, el) {
+        currentAccent = color;
+        document.documentElement.style.setProperty('--accent', color);
+        document.documentElement.style.setProperty('--accent-glow', glow);
+        document.querySelectorAll('.color-pick').forEach(c => c.classList.remove('active'));
+        el.classList.add('active');
+        localStorage.setItem('nt_accent', color);
+        localStorage.setItem('nt_glow', glow);
+    }
+
+    function setBg(type, el) {
+        const ids = { aurora:'bgAurora', grid:'bgGrid', orbs:'bgOrbs', mesh:'bgMesh' };
+        Object.values(ids).forEach(id => document.getElementById(id).classList.add('bg-hidden'));
+        if (ids[type]) document.getElementById(ids[type]).classList.remove('bg-hidden');
+        document.querySelectorAll('.bg-pick').forEach(b => b.classList.remove('active'));
+        el.classList.add('active');
+        localStorage.setItem('nt_bg', type);
+    }
+
+    function setRingStyle(style, el) {
+        const w = { thin: 4, bold: 10, dots: 3 }[style] || 4;
+        document.documentElement.style.setProperty('--ring-width', w);
+        const ring = document.getElementById('ringProgress');
+        const glow = document.getElementById('ringGlow');
+        if (style === 'dots') {
+            ring.style.strokeDasharray = `4 12`; ring.style.strokeLinecap = 'round';
+            glow.style.strokeDasharray = `4 12`;
+        } else {
+            ring.style.strokeDasharray = CIRC; ring.style.strokeLinecap = 'round';
+            glow.style.strokeDasharray = CIRC;
+        }
+        document.querySelectorAll('.ring-pick').forEach(r => r.classList.remove('active'));
+        el.classList.add('active');
+        localStorage.setItem('nt_ring', style);
+        // Re-render progress
+        if (state !== 'stopped') renderRing();
+    }
+
+    function setFont(f, el) {
+        const families = { mono: "'SF Mono','Fira Code','Cascadia Code',monospace", sans: "-apple-system,BlinkMacSystemFont,'Helvetica Neue',sans-serif", display: "Georgia,'Times New Roman',serif" };
+        const weights = { mono: '200', sans: '100', display: '300' };
+        document.getElementById('timeDisplay').style.fontFamily = families[f];
+        document.getElementById('timeDisplay').style.fontWeight = weights[f];
+        if (f === 'display') document.getElementById('timeDisplay').style.fontStyle = 'italic';
+        else document.getElementById('timeDisplay').style.fontStyle = 'normal';
+        document.querySelectorAll('.font-pick').forEach(fp => fp.classList.remove('active'));
+        el.classList.add('active');
+        localStorage.setItem('nt_font', f);
     }
 
     // ── Mode switch ───────────────────────────────────────
     function setMode(m, el) {
         if (state === 'running') return;
-        doReset();
-        mode = m;
-        document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
+        doReset(); mode = m;
+        document.querySelectorAll('.seg-btn').forEach(b => b.classList.remove('active'));
         el.classList.add('active');
         document.getElementById('countdownSettings').classList.toggle('hidden', m !== 'countdown');
         document.getElementById('btnLap').classList.toggle('hidden', m === 'countdown');
-        if (m === 'countdown') {
-            readCustomTime();
-            renderTime();
-        }
+        if (m === 'countdown') { readCustomTime(); renderTime(); }
     }
-
     function setPreset(secs, el) {
         if (state === 'running') return;
         document.querySelectorAll('.preset').forEach(p => p.classList.remove('active'));
         el.classList.add('active');
-        countdownTotal = secs * 1000;
-        elapsed = countdownTotal;
-        const h = Math.floor(secs/3600), m = Math.floor((secs%3600)/60), s = secs%60;
-        document.getElementById('inH').value = h;
-        document.getElementById('inM').value = m;
-        document.getElementById('inS').value = s;
-        renderTime();
+        countdownTotal = secs * 1000; elapsed = countdownTotal;
+        const h=Math.floor(secs/3600), m=Math.floor((secs%3600)/60), s=secs%60;
+        document.getElementById('inH').value=h; document.getElementById('inM').value=m; document.getElementById('inS').value=s;
+        renderTime(); setRingProgress(1);
     }
-
     function readCustomTime() {
-        const h = parseInt(document.getElementById('inH').value)||0;
-        const m = parseInt(document.getElementById('inM').value)||0;
-        const s = parseInt(document.getElementById('inS').value)||0;
-        countdownTotal = (h*3600 + m*60 + s) * 1000;
-        elapsed = countdownTotal;
+        const h=parseInt(document.getElementById('inH').value)||0, m=parseInt(document.getElementById('inM').value)||0, s=parseInt(document.getElementById('inS').value)||0;
+        countdownTotal=(h*3600+m*60+s)*1000; elapsed=countdownTotal;
     }
 
     // ── Controls ──────────────────────────────────────────
     function doStartPause() {
-        if (state === 'stopped' || state === 'finished') {
-            // Start
-            if (mode === 'countdown') readCustomTime();
-            if (mode === 'countdown' && countdownTotal <= 0) return;
-            state = 'running';
-            if (mode === 'stopwatch') {
-                startTs = performance.now() - pauseElapsed;
-            } else {
-                startTs = performance.now();
-                if (pauseElapsed === 0) pauseElapsed = countdownTotal;
-            }
-            updateButtons();
-            tick();
-        } else if (state === 'running') {
-            // Pause
-            state = 'paused';
-            cancelAnimationFrame(animFrame);
-            if (mode === 'stopwatch') pauseElapsed = elapsed;
-            else pauseElapsed = elapsed;
-            updateButtons();
-        } else if (state === 'paused') {
-            // Resume
-            state = 'running';
-            if (mode === 'stopwatch') {
-                startTs = performance.now() - pauseElapsed;
-            } else {
-                startTs = performance.now();
-            }
-            updateButtons();
-            tick();
+        if (state==='stopped'||state==='finished') {
+            if (mode==='countdown') readCustomTime();
+            if (mode==='countdown'&&countdownTotal<=0) return;
+            state='running';
+            if (mode==='stopwatch') startTs=performance.now()-pauseElapsed;
+            else { startTs=performance.now(); if(pauseElapsed===0) pauseElapsed=countdownTotal; }
+            updateButtons(); tick();
+        } else if (state==='running') {
+            state='paused'; cancelAnimationFrame(animFrame);
+            pauseElapsed=elapsed; updateButtons();
+        } else if (state==='paused') {
+            state='running';
+            if (mode==='stopwatch') startTs=performance.now()-pauseElapsed;
+            else startTs=performance.now();
+            updateButtons(); tick();
         }
     }
-
     function doReset() {
-        state = 'stopped';
-        cancelAnimationFrame(animFrame);
-        elapsed = mode === 'countdown' ? countdownTotal : 0;
-        pauseElapsed = 0;
-        laps = [];
-        document.getElementById('lapsBody').innerHTML = '';
+        state='stopped'; cancelAnimationFrame(animFrame);
+        elapsed=mode==='countdown'?countdownTotal:0; pauseElapsed=0; laps=[];
+        document.getElementById('lapsBody').innerHTML='';
         document.getElementById('lapsPanel').classList.add('hidden');
         document.getElementById('statsBar').classList.add('hidden');
         document.getElementById('displayRing').classList.remove('alarm-flash');
-        updateButtons();
-        renderTime();
-        setRingProgress(mode === 'countdown' ? 1 : 0);
+        updateButtons(); renderTime(); setRingProgress(mode==='countdown'?1:0);
     }
-
     function doLap() {
-        if (state !== 'running' || mode !== 'stopwatch') return;
+        if (state!=='running'||mode!=='stopwatch') return;
         lapSound();
-        const prevTotal = laps.length ? laps[laps.length-1].total : 0;
-        const lapTime = elapsed - prevTotal;
-        laps.push({ total: elapsed, lap: lapTime });
-        spawnParticles();
-        renderLaps();
+        const prev=laps.length?laps[laps.length-1].total:0;
+        laps.push({total:elapsed,lap:elapsed-prev});
+        spawnParticles(); renderLaps();
     }
-
     function updateButtons() {
-        const startBtn = document.getElementById('btnStart');
-        const resetBtn = document.getElementById('btnReset');
-        const lapBtn = document.getElementById('btnLap');
-
-        if (state === 'running') {
-            startBtn.innerHTML = '&#x23F8;'; // pause
-            startBtn.classList.add('running');
-            resetBtn.classList.remove('btn-disabled');
-            lapBtn.classList.remove('btn-disabled');
-        } else if (state === 'paused') {
-            startBtn.innerHTML = '&#x25B6;'; // play
-            startBtn.classList.remove('running');
-            resetBtn.classList.remove('btn-disabled');
-            lapBtn.classList.add('btn-disabled');
-        } else {
-            startBtn.innerHTML = '&#x25B6;';
-            startBtn.classList.remove('running');
-            resetBtn.classList.add('btn-disabled');
-            lapBtn.classList.add('btn-disabled');
-        }
-
-        document.getElementById('timeLabel').textContent =
-            state === 'running' ? 'RUNNING' :
-            state === 'paused' ? 'PAUSED' :
-            state === 'finished' ? 'FINISHED' : 'READY';
+        const s=document.getElementById('btnStart'), r=document.getElementById('btnReset'), l=document.getElementById('btnLap');
+        if (state==='running') { s.innerHTML='&#x23F8;'; s.classList.add('running'); r.classList.remove('btn-disabled'); l.classList.remove('btn-disabled'); }
+        else if (state==='paused') { s.innerHTML='&#x25B6;'; s.classList.remove('running'); r.classList.remove('btn-disabled'); l.classList.add('btn-disabled'); }
+        else { s.innerHTML='&#x25B6;'; s.classList.remove('running'); r.classList.add('btn-disabled'); l.classList.add('btn-disabled'); }
+        document.getElementById('timeLabel').textContent = state==='running'?'RUNNING':state==='paused'?'PAUSED':state==='finished'?'FINISHED':'READY';
     }
 
-    // ── Tick loop ─────────────────────────────────────────
+    // ── Tick ──────────────────────────────────────────────
     function tick() {
-        if (state !== 'running') return;
-
-        if (mode === 'stopwatch') {
-            elapsed = performance.now() - startTs;
-        } else {
-            const delta = performance.now() - startTs;
-            elapsed = pauseElapsed - delta;
-            if (elapsed <= 0) {
-                elapsed = 0;
-                state = 'finished';
-                alarmSound();
-                document.getElementById('displayRing').classList.add('alarm-flash');
-                updateButtons();
-                renderTime();
-                setRingProgress(0);
-                return;
-            }
-        }
-
-        renderTime();
-
-        // Ring progress
-        if (mode === 'stopwatch') {
-            // Full rotation every 60s
-            const frac = (elapsed % 60000) / 60000;
-            setRingProgress(frac);
-        } else {
-            setRingProgress(elapsed / countdownTotal);
-        }
-
-        animFrame = requestAnimationFrame(tick);
+        if (state!=='running') return;
+        if (mode==='stopwatch') elapsed=performance.now()-startTs;
+        else { elapsed=pauseElapsed-(performance.now()-startTs); if(elapsed<=0){elapsed=0;state='finished';alarmSound();document.getElementById('displayRing').classList.add('alarm-flash');updateButtons();renderTime();setRingProgress(0);return;}}
+        renderTime(); renderRing();
+        animFrame=requestAnimationFrame(tick);
+    }
+    function renderRing() {
+        const frac = mode==='stopwatch' ? (elapsed%60000)/60000 : elapsed/countdownTotal;
+        setRingProgress(frac);
     }
 
     // ── Rendering ─────────────────────────────────────────
-    function formatTime(ms, full) {
-        const totalSec = Math.floor(ms / 1000);
-        const h = Math.floor(totalSec / 3600);
-        const m = Math.floor((totalSec % 3600) / 60);
-        const s = totalSec % 60;
-        const cs = Math.floor((ms % 1000) / 10);
-        const pad = n => String(n).padStart(2, '0');
-
-        if (full) return `${h > 0 ? h + ':' : ''}${pad(m)}:${pad(s)}.${pad(cs)}`;
-        if (h > 0) return { main: `${h}:${pad(m)}:${pad(s)}`, ms: pad(cs) };
-        return { main: `${pad(m)}:${pad(s)}`, ms: pad(cs) };
+    function formatTime(ms,full) {
+        const ts=Math.floor(ms/1000), h=Math.floor(ts/3600), m=Math.floor((ts%3600)/60), s=ts%60, cs=Math.floor((ms%1000)/10);
+        const pad=n=>String(n).padStart(2,'0');
+        if(full) return `${h>0?h+':':''}${pad(m)}:${pad(s)}.${pad(cs)}`;
+        if(h>0) return {main:`${h}:${pad(m)}:${pad(s)}`,ms:pad(cs)};
+        return {main:`${pad(m)}:${pad(s)}`,ms:pad(cs)};
     }
-
     function renderTime() {
-        const t = formatTime(elapsed);
-        document.getElementById('timeDisplay').innerHTML = `${t.main}<span class="ms">.${t.ms}</span>`;
+        const t=formatTime(elapsed);
+        document.getElementById('timeDisplay').innerHTML=`${t.main}<span class="ms">.${t.ms}</span>`;
     }
-
     function setRingProgress(frac) {
-        const offset = CIRC * (1 - Math.min(1, Math.max(0, frac)));
-        document.getElementById('ringProgress').style.strokeDashoffset = offset;
+        const off=CIRC*(1-Math.min(1,Math.max(0,frac)));
+        document.getElementById('ringProgress').style.strokeDashoffset=off;
+        document.getElementById('ringGlow').style.strokeDashoffset=off;
     }
-
     function renderLaps() {
-        const panel = document.getElementById('lapsPanel');
-        const body = document.getElementById('lapsBody');
+        const panel=document.getElementById('lapsPanel'), body=document.getElementById('lapsBody');
         panel.classList.remove('hidden');
-
-        const lapTimes = laps.map(l => l.lap);
-        const best = Math.min(...lapTimes);
-        const worst = Math.max(...lapTimes);
-
-        body.innerHTML = [...laps].reverse().map((l, ri) => {
-            const i = laps.length - 1 - ri;
-            const cls = lapTimes.length > 2 ? (l.lap === best ? 'lap-best' : l.lap === worst ? 'lap-worst' : '') : '';
-            const barPct = (l.lap / worst * 100).toFixed(0);
-            return `<div class="lap-row">
-                <span class="lap-num">#${i + 1}</span>
-                <span class="lap-time ${cls}">${formatTime(l.lap, true)}</span>
-                <span class="lap-delta">${formatTime(l.total, true)}</span>
-                <div><div class="lap-bar" style="width:${barPct}%;${cls === 'lap-best' ? 'background:var(--green)' : cls === 'lap-worst' ? 'background:var(--pink)' : ''}"></div></div>
-            </div>`;
+        const lt=laps.map(l=>l.lap), best=Math.min(...lt), worst=Math.max(...lt);
+        body.innerHTML=[...laps].reverse().map((l,ri)=>{
+            const i=laps.length-1-ri;
+            const cls=lt.length>2?(l.lap===best?'lap-best':l.lap===worst?'lap-worst':''):'';
+            const pct=(l.lap/worst*100).toFixed(0);
+            return `<div class="lap-row"><span class="lap-num">${i+1}</span><span class="lap-time ${cls}">${formatTime(l.lap,true)}</span><span class="lap-delta">${formatTime(l.total,true)}</span><div class="lap-bar-wrap"><div class="lap-bar" style="width:${pct}%;${cls==='lap-best'?'background:var(--green)':cls==='lap-worst'?'background:var(--red)':''}"></div></div></div>`;
         }).join('');
-
-        // Stats
-        const statsBar = document.getElementById('statsBar');
-        statsBar.classList.remove('hidden');
-        const avg = lapTimes.reduce((a,b)=>a+b,0) / lapTimes.length;
-        document.getElementById('statTotal').textContent = formatTime(elapsed, true);
-        document.getElementById('statAvg').textContent = formatTime(avg, true);
-        document.getElementById('statBest').textContent = formatTime(best, true);
-        document.getElementById('statLaps').textContent = laps.length;
+        document.getElementById('statsBar').classList.remove('hidden');
+        const avg=lt.reduce((a,b)=>a+b,0)/lt.length;
+        document.getElementById('statTotal').textContent=formatTime(elapsed,true);
+        document.getElementById('statAvg').textContent=formatTime(avg,true);
+        document.getElementById('statBest').textContent=formatTime(best,true);
+        document.getElementById('statLaps').textContent=laps.length;
     }
 
     // ── Particles ─────────────────────────────────────────
     function spawnParticles() {
-        const container = document.getElementById('particles');
-        for (let i = 0; i < 12; i++) {
-            const p = document.createElement('div');
-            p.className = 'particle';
-            const angle = Math.random() * Math.PI * 2;
-            const dist = 100 + Math.random() * 40;
-            const x = 150 + Math.cos(angle) * dist;
-            const y = 150 + Math.sin(angle) * dist;
-            p.style.left = '150px'; p.style.top = '150px';
-            p.style.background = neonColor;
-            container.appendChild(p);
-
-            p.animate([
-                { opacity: 1, transform: 'translate(0,0) scale(1)' },
-                { opacity: 0, transform: `translate(${x-150}px,${y-150}px) scale(0)` }
-            ], { duration: 600 + Math.random() * 400, easing: 'ease-out' });
-
-            setTimeout(() => p.remove(), 1100);
+        const c=document.getElementById('particles');
+        for(let i=0;i<16;i++){
+            const p=document.createElement('div'); p.style.cssText=`position:absolute;width:3px;height:3px;border-radius:50%;left:50%;top:50%;background:${currentAccent}`;
+            c.appendChild(p);
+            const a=Math.random()*Math.PI*2, d=60+Math.random()*80;
+            p.animate([{opacity:1,transform:'translate(0,0) scale(1.5)'},{opacity:0,transform:`translate(${Math.cos(a)*d}px,${Math.sin(a)*d}px) scale(0)`}],{duration:500+Math.random()*400,easing:'ease-out'});
+            setTimeout(()=>p.remove(),1000);
         }
     }
 
-    // ── Keyboard shortcuts ────────────────────────────────
-    document.addEventListener('keydown', e => {
-        if (e.target.tagName === 'INPUT') return;
-        if (e.code === 'Space') { e.preventDefault(); doStartPause(); }
-        if (e.code === 'KeyL') doLap();
-        if (e.code === 'KeyR') doReset();
+    // ── Keyboard ──────────────────────────────────────────
+    document.addEventListener('keydown',e=>{
+        if(e.target.tagName==='INPUT') return;
+        if(e.code==='Space'){e.preventDefault();doStartPause();}
+        if(e.code==='KeyL') doLap();
+        if(e.code==='KeyR') doReset();
+        if(e.code==='Escape') closeSettings();
     });
 
+    // ── Restore saved prefs ───────────────────────────────
+    function loadPrefs() {
+        const skin = localStorage.getItem('nt_skin');
+        if (skin) { const el = document.querySelector(`.skin-${skin}`); if (el) applySkin(skin, el); }
+        const accent = localStorage.getItem('nt_accent'), glow = localStorage.getItem('nt_glow');
+        if (accent && glow) { const el = document.querySelector(`.color-pick[style*="${accent}"]`); if (el) setAccent(accent, glow, el); }
+        const bg = localStorage.getItem('nt_bg');
+        if (bg) { const el = document.querySelector(`.bg-p-${bg === 'clean' ? 'clean' : bg}`); if (el) setBg(bg, el); }
+    }
+
     // Init
-    renderTime();
-    setRingProgress(0);
+    renderTime(); setRingProgress(0); loadPrefs();
     </script>
 </body>
 </html>

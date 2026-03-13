@@ -1,0 +1,498 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Neon Timer — Stopwatch, Countdown & Lap Tracker</title>
+    <style>
+        :root { --neon: #00f0ff; --pink: #ff2d95; --green: #39ff14; --orange: #ff6b00; --purple: #b44dff; --dark: #0a0a1a; --card: #12122a; }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace; background: var(--dark); color: #fff; min-height: 100vh; overflow-x: hidden; }
+
+        /* Animated background */
+        .bg-grid { position: fixed; inset: 0; z-index: 0; background-image:
+            linear-gradient(rgba(0,240,255,0.03) 1px, transparent 1px),
+            linear-gradient(90deg, rgba(0,240,255,0.03) 1px, transparent 1px);
+            background-size: 40px 40px;
+            animation: gridMove 20s linear infinite;
+        }
+        @keyframes gridMove { to { background-position: 40px 40px; } }
+
+        .container { position: relative; z-index: 1; max-width: 520px; margin: 0 auto; padding: 1rem; }
+
+        /* Header */
+        .header { text-align: center; padding: 1.5rem 0 1rem; }
+        .header h1 { font-size: 1.4rem; font-weight: 300; letter-spacing: 6px; text-transform: uppercase; color: var(--neon); text-shadow: 0 0 20px rgba(0,240,255,0.5); }
+        .header .subtitle { font-size: 0.65rem; color: #555; letter-spacing: 3px; margin-top: 4px; }
+
+        /* Mode tabs */
+        .modes { display: flex; justify-content: center; gap: 4px; margin-bottom: 1.5rem; }
+        .mode-btn { padding: 8px 20px; border: 1px solid #222; border-radius: 24px; background: transparent; color: #666; font-family: inherit; font-size: 0.75rem; cursor: pointer; letter-spacing: 2px; text-transform: uppercase; transition: all 0.3s; }
+        .mode-btn.active { border-color: var(--neon); color: var(--neon); background: rgba(0,240,255,0.08); box-shadow: 0 0 15px rgba(0,240,255,0.15); }
+        .mode-btn:hover:not(.active) { border-color: #444; color: #999; }
+
+        /* Main display */
+        .display-ring { position: relative; width: 300px; height: 300px; margin: 0 auto 1.5rem; }
+        .ring-svg { position: absolute; inset: 0; width: 100%; height: 100%; transform: rotate(-90deg); }
+        .ring-bg { fill: none; stroke: #1a1a3a; stroke-width: 3; }
+        .ring-progress { fill: none; stroke: var(--neon); stroke-width: 3; stroke-linecap: round; stroke-dasharray: 880; stroke-dashoffset: 880; transition: stroke-dashoffset 0.1s linear, stroke 0.3s; filter: drop-shadow(0 0 6px var(--neon)); }
+
+        .display-inner { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+        .time-display { font-size: 3.2rem; font-weight: 200; letter-spacing: 2px; color: #fff; text-shadow: 0 0 30px rgba(0,240,255,0.3); }
+        .time-display .ms { font-size: 1.6rem; color: var(--neon); opacity: 0.8; }
+        .time-label { font-size: 0.65rem; color: #555; letter-spacing: 3px; margin-top: 4px; }
+
+        /* Particles */
+        .particles { position: absolute; inset: 0; pointer-events: none; }
+        .particle { position: absolute; width: 3px; height: 3px; border-radius: 50%; background: var(--neon); opacity: 0; }
+
+        /* Controls */
+        .controls { display: flex; justify-content: center; gap: 12px; margin-bottom: 1.5rem; }
+        .ctrl-btn { width: 56px; height: 56px; border-radius: 50%; border: 2px solid; display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 1.2rem; transition: all 0.25s; background: transparent; }
+        .ctrl-btn:active { transform: scale(0.92); }
+        .btn-start { border-color: var(--green); color: var(--green); }
+        .btn-start:hover { background: rgba(57,255,20,0.12); box-shadow: 0 0 20px rgba(57,255,20,0.3); }
+        .btn-start.running { border-color: var(--orange); color: var(--orange); }
+        .btn-start.running:hover { background: rgba(255,107,0,0.12); box-shadow: 0 0 20px rgba(255,107,0,0.3); }
+        .btn-lap { border-color: var(--purple); color: var(--purple); }
+        .btn-lap:hover { background: rgba(180,77,255,0.12); box-shadow: 0 0 20px rgba(180,77,255,0.3); }
+        .btn-reset { border-color: var(--pink); color: var(--pink); }
+        .btn-reset:hover { background: rgba(255,45,149,0.12); box-shadow: 0 0 20px rgba(255,45,149,0.3); }
+        .btn-disabled { opacity: 0.3; pointer-events: none; }
+
+        /* Countdown presets */
+        .presets { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; margin-bottom: 1rem; }
+        .preset { padding: 5px 14px; border: 1px solid #222; border-radius: 16px; background: transparent; color: #777; font-family: inherit; font-size: 0.72rem; cursor: pointer; transition: all 0.2s; }
+        .preset:hover { border-color: var(--pink); color: var(--pink); }
+        .preset.active { border-color: var(--pink); color: var(--pink); background: rgba(255,45,149,0.1); }
+
+        /* Custom time input */
+        .custom-input { display: flex; justify-content: center; gap: 4px; margin-bottom: 1rem; }
+        .time-input { width: 52px; padding: 6px; border: 1px solid #222; border-radius: 8px; background: var(--card); color: var(--neon); font-family: inherit; font-size: 0.85rem; text-align: center; outline: none; }
+        .time-input:focus { border-color: var(--neon); box-shadow: 0 0 10px rgba(0,240,255,0.2); }
+        .time-sep { color: #444; font-size: 1.2rem; line-height: 32px; }
+
+        /* Laps */
+        .laps { background: var(--card); border-radius: 12px; overflow: hidden; }
+        .laps-header { display: flex; justify-content: space-between; padding: 10px 16px; font-size: 0.68rem; color: #555; letter-spacing: 2px; text-transform: uppercase; border-bottom: 1px solid #1a1a3a; }
+        .lap-row { display: grid; grid-template-columns: 40px 1fr 1fr 40px; gap: 8px; padding: 8px 16px; border-bottom: 1px solid #111; font-size: 0.78rem; align-items: center; transition: background 0.2s; animation: lapIn 0.3s ease-out; }
+        .lap-row:hover { background: rgba(0,240,255,0.03); }
+        @keyframes lapIn { from { opacity: 0; transform: translateX(-10px); } to { opacity: 1; transform: none; } }
+        .lap-num { color: #555; font-size: 0.68rem; }
+        .lap-time { color: var(--neon); }
+        .lap-delta { color: #666; text-align: right; }
+        .lap-best { color: var(--green); }
+        .lap-worst { color: var(--pink); }
+        .lap-bar { height: 2px; border-radius: 1px; background: var(--neon); opacity: 0.4; transition: width 0.3s; }
+
+        /* Alarm animation */
+        .alarm-flash { animation: alarmPulse 0.5s ease-in-out infinite alternate; }
+        @keyframes alarmPulse { from { opacity: 1; } to { opacity: 0.3; } }
+
+        /* Stats bar */
+        .stats { display: flex; justify-content: center; gap: 1.5rem; margin-bottom: 1rem; }
+        .stat { text-align: center; }
+        .stat-val { font-size: 0.9rem; color: var(--neon); }
+        .stat-label { font-size: 0.58rem; color: #444; letter-spacing: 2px; text-transform: uppercase; }
+
+        /* Sound toggle */
+        .sound-toggle { position: fixed; top: 12px; right: 12px; z-index: 10; padding: 6px 10px; border: 1px solid #222; border-radius: 16px; background: transparent; color: #555; font-size: 0.72rem; cursor: pointer; font-family: inherit; }
+        .sound-toggle.on { border-color: var(--green); color: var(--green); }
+
+        /* Theme picker */
+        .themes { position: fixed; top: 12px; left: 12px; z-index: 10; display: flex; gap: 4px; }
+        .theme-dot { width: 14px; height: 14px; border-radius: 50%; cursor: pointer; border: 2px solid transparent; transition: all 0.2s; }
+        .theme-dot:hover, .theme-dot.active { border-color: #fff; transform: scale(1.2); }
+        .theme-dot.t-cyan { background: #00f0ff; }
+        .theme-dot.t-pink { background: #ff2d95; }
+        .theme-dot.t-green { background: #39ff14; }
+        .theme-dot.t-gold { background: #ffd700; }
+
+        .hidden { display: none; }
+
+        @media (max-width: 400px) {
+            .time-display { font-size: 2.5rem; }
+            .display-ring { width: 240px; height: 240px; }
+            .ctrl-btn { width: 48px; height: 48px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="bg-grid"></div>
+    <div class="themes">
+        <div class="theme-dot t-cyan active" onclick="setTheme('#00f0ff')"></div>
+        <div class="theme-dot t-pink" onclick="setTheme('#ff2d95')"></div>
+        <div class="theme-dot t-green" onclick="setTheme('#39ff14')"></div>
+        <div class="theme-dot t-gold" onclick="setTheme('#ffd700')"></div>
+    </div>
+    <button class="sound-toggle" id="soundBtn" onclick="toggleSound()">Sound OFF</button>
+
+    <div class="container">
+        <div class="header">
+            <h1>Neon Timer</h1>
+            <div class="subtitle">Stopwatch &bull; Countdown &bull; Lap Tracker</div>
+        </div>
+
+        <div class="modes">
+            <button class="mode-btn active" onclick="setMode('stopwatch',this)">Stopwatch</button>
+            <button class="mode-btn" onclick="setMode('countdown',this)">Countdown</button>
+        </div>
+
+        <div id="countdownSettings" class="hidden">
+            <div class="presets">
+                <button class="preset" onclick="setPreset(30,this)">30s</button>
+                <button class="preset" onclick="setPreset(60,this)">1m</button>
+                <button class="preset" onclick="setPreset(120,this)">2m</button>
+                <button class="preset" onclick="setPreset(300,this)">5m</button>
+                <button class="preset" onclick="setPreset(600,this)">10m</button>
+                <button class="preset" onclick="setPreset(900,this)">15m</button>
+                <button class="preset" onclick="setPreset(1800,this)">30m</button>
+                <button class="preset" onclick="setPreset(3600,this)">1h</button>
+            </div>
+            <div class="custom-input">
+                <input class="time-input" id="inH" type="number" min="0" max="23" value="0" placeholder="H">
+                <span class="time-sep">:</span>
+                <input class="time-input" id="inM" type="number" min="0" max="59" value="5" placeholder="M">
+                <span class="time-sep">:</span>
+                <input class="time-input" id="inS" type="number" min="0" max="59" value="0" placeholder="S">
+            </div>
+        </div>
+
+        <div class="display-ring" id="displayRing">
+            <svg class="ring-svg" viewBox="0 0 300 300">
+                <circle class="ring-bg" cx="150" cy="150" r="140" />
+                <circle class="ring-progress" id="ringProgress" cx="150" cy="150" r="140" />
+            </svg>
+            <div class="particles" id="particles"></div>
+            <div class="display-inner">
+                <div class="time-display" id="timeDisplay">00:00<span class="ms">.00</span></div>
+                <div class="time-label" id="timeLabel">READY</div>
+            </div>
+        </div>
+
+        <div class="stats hidden" id="statsBar">
+            <div class="stat"><div class="stat-val" id="statTotal">00:00</div><div class="stat-label">Total</div></div>
+            <div class="stat"><div class="stat-val" id="statAvg">--</div><div class="stat-label">Avg Lap</div></div>
+            <div class="stat"><div class="stat-val" id="statBest">--</div><div class="stat-label">Best</div></div>
+            <div class="stat"><div class="stat-val" id="statLaps">0</div><div class="stat-label">Laps</div></div>
+        </div>
+
+        <div class="controls">
+            <button class="ctrl-btn btn-reset btn-disabled" id="btnReset" onclick="doReset()" title="Reset">&#x21bb;</button>
+            <button class="ctrl-btn btn-start" id="btnStart" onclick="doStartPause()" title="Start">&#x25B6;</button>
+            <button class="ctrl-btn btn-lap btn-disabled" id="btnLap" onclick="doLap()" title="Lap">&#x2691;</button>
+        </div>
+
+        <div class="laps hidden" id="lapsPanel">
+            <div class="laps-header">
+                <span>#</span><span>Lap Time</span><span>Split</span><span></span>
+            </div>
+            <div id="lapsBody"></div>
+        </div>
+    </div>
+
+    <script>
+    // ── State ──────────────────────────────────────────────
+    let mode = 'stopwatch'; // stopwatch | countdown
+    let state = 'stopped';  // stopped | running | paused | finished
+    let elapsed = 0;        // ms elapsed (stopwatch) or remaining (countdown)
+    let countdownTotal = 300000; // ms total for countdown
+    let startTs = 0;
+    let pauseElapsed = 0;
+    let animFrame = null;
+    let laps = [];
+    let soundOn = false;
+    let neonColor = '#00f0ff';
+
+    const CIRC = 2 * Math.PI * 140; // ~879.6
+
+    // ── Audio (Web Audio API — no external files) ─────────
+    let audioCtx = null;
+    function beep(freq, dur, type='sine') {
+        if (!soundOn) return;
+        if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = type;
+        osc.frequency.value = freq;
+        gain.gain.setValueAtTime(0.15, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + dur);
+        osc.connect(gain).connect(audioCtx.destination);
+        osc.start(); osc.stop(audioCtx.currentTime + dur);
+    }
+    function tickSound() { beep(800, 0.05); }
+    function lapSound() { beep(1200, 0.1); beep(1600, 0.15); }
+    function alarmSound() {
+        for (let i = 0; i < 5; i++) setTimeout(() => beep(1800 - i*200, 0.2, 'square'), i * 250);
+    }
+
+    // ── Theme ─────────────────────────────────────────────
+    function setTheme(color) {
+        neonColor = color;
+        document.documentElement.style.setProperty('--neon', color);
+        document.querySelectorAll('.theme-dot').forEach(d => d.classList.remove('active'));
+        document.querySelector(`.theme-dot[onclick*="${color}"]`)?.classList.add('active');
+        const ring = document.getElementById('ringProgress');
+        ring.style.stroke = color;
+        ring.style.filter = `drop-shadow(0 0 6px ${color})`;
+    }
+
+    function toggleSound() {
+        soundOn = !soundOn;
+        const btn = document.getElementById('soundBtn');
+        btn.textContent = soundOn ? 'Sound ON' : 'Sound OFF';
+        btn.classList.toggle('on', soundOn);
+        if (soundOn) { tickSound(); } // test beep
+    }
+
+    // ── Mode switch ───────────────────────────────────────
+    function setMode(m, el) {
+        if (state === 'running') return;
+        doReset();
+        mode = m;
+        document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
+        el.classList.add('active');
+        document.getElementById('countdownSettings').classList.toggle('hidden', m !== 'countdown');
+        document.getElementById('btnLap').classList.toggle('hidden', m === 'countdown');
+        if (m === 'countdown') {
+            readCustomTime();
+            renderTime();
+        }
+    }
+
+    function setPreset(secs, el) {
+        if (state === 'running') return;
+        document.querySelectorAll('.preset').forEach(p => p.classList.remove('active'));
+        el.classList.add('active');
+        countdownTotal = secs * 1000;
+        elapsed = countdownTotal;
+        const h = Math.floor(secs/3600), m = Math.floor((secs%3600)/60), s = secs%60;
+        document.getElementById('inH').value = h;
+        document.getElementById('inM').value = m;
+        document.getElementById('inS').value = s;
+        renderTime();
+    }
+
+    function readCustomTime() {
+        const h = parseInt(document.getElementById('inH').value)||0;
+        const m = parseInt(document.getElementById('inM').value)||0;
+        const s = parseInt(document.getElementById('inS').value)||0;
+        countdownTotal = (h*3600 + m*60 + s) * 1000;
+        elapsed = countdownTotal;
+    }
+
+    // ── Controls ──────────────────────────────────────────
+    function doStartPause() {
+        if (state === 'stopped' || state === 'finished') {
+            // Start
+            if (mode === 'countdown') readCustomTime();
+            if (mode === 'countdown' && countdownTotal <= 0) return;
+            state = 'running';
+            if (mode === 'stopwatch') {
+                startTs = performance.now() - pauseElapsed;
+            } else {
+                startTs = performance.now();
+                if (pauseElapsed === 0) pauseElapsed = countdownTotal;
+            }
+            updateButtons();
+            tick();
+        } else if (state === 'running') {
+            // Pause
+            state = 'paused';
+            cancelAnimationFrame(animFrame);
+            if (mode === 'stopwatch') pauseElapsed = elapsed;
+            else pauseElapsed = elapsed;
+            updateButtons();
+        } else if (state === 'paused') {
+            // Resume
+            state = 'running';
+            if (mode === 'stopwatch') {
+                startTs = performance.now() - pauseElapsed;
+            } else {
+                startTs = performance.now();
+            }
+            updateButtons();
+            tick();
+        }
+    }
+
+    function doReset() {
+        state = 'stopped';
+        cancelAnimationFrame(animFrame);
+        elapsed = mode === 'countdown' ? countdownTotal : 0;
+        pauseElapsed = 0;
+        laps = [];
+        document.getElementById('lapsBody').innerHTML = '';
+        document.getElementById('lapsPanel').classList.add('hidden');
+        document.getElementById('statsBar').classList.add('hidden');
+        document.getElementById('displayRing').classList.remove('alarm-flash');
+        updateButtons();
+        renderTime();
+        setRingProgress(mode === 'countdown' ? 1 : 0);
+    }
+
+    function doLap() {
+        if (state !== 'running' || mode !== 'stopwatch') return;
+        lapSound();
+        const prevTotal = laps.length ? laps[laps.length-1].total : 0;
+        const lapTime = elapsed - prevTotal;
+        laps.push({ total: elapsed, lap: lapTime });
+        spawnParticles();
+        renderLaps();
+    }
+
+    function updateButtons() {
+        const startBtn = document.getElementById('btnStart');
+        const resetBtn = document.getElementById('btnReset');
+        const lapBtn = document.getElementById('btnLap');
+
+        if (state === 'running') {
+            startBtn.innerHTML = '&#x23F8;'; // pause
+            startBtn.classList.add('running');
+            resetBtn.classList.remove('btn-disabled');
+            lapBtn.classList.remove('btn-disabled');
+        } else if (state === 'paused') {
+            startBtn.innerHTML = '&#x25B6;'; // play
+            startBtn.classList.remove('running');
+            resetBtn.classList.remove('btn-disabled');
+            lapBtn.classList.add('btn-disabled');
+        } else {
+            startBtn.innerHTML = '&#x25B6;';
+            startBtn.classList.remove('running');
+            resetBtn.classList.add('btn-disabled');
+            lapBtn.classList.add('btn-disabled');
+        }
+
+        document.getElementById('timeLabel').textContent =
+            state === 'running' ? 'RUNNING' :
+            state === 'paused' ? 'PAUSED' :
+            state === 'finished' ? 'FINISHED' : 'READY';
+    }
+
+    // ── Tick loop ─────────────────────────────────────────
+    function tick() {
+        if (state !== 'running') return;
+
+        if (mode === 'stopwatch') {
+            elapsed = performance.now() - startTs;
+        } else {
+            const delta = performance.now() - startTs;
+            elapsed = pauseElapsed - delta;
+            if (elapsed <= 0) {
+                elapsed = 0;
+                state = 'finished';
+                alarmSound();
+                document.getElementById('displayRing').classList.add('alarm-flash');
+                updateButtons();
+                renderTime();
+                setRingProgress(0);
+                return;
+            }
+        }
+
+        renderTime();
+
+        // Ring progress
+        if (mode === 'stopwatch') {
+            // Full rotation every 60s
+            const frac = (elapsed % 60000) / 60000;
+            setRingProgress(frac);
+        } else {
+            setRingProgress(elapsed / countdownTotal);
+        }
+
+        animFrame = requestAnimationFrame(tick);
+    }
+
+    // ── Rendering ─────────────────────────────────────────
+    function formatTime(ms, full) {
+        const totalSec = Math.floor(ms / 1000);
+        const h = Math.floor(totalSec / 3600);
+        const m = Math.floor((totalSec % 3600) / 60);
+        const s = totalSec % 60;
+        const cs = Math.floor((ms % 1000) / 10);
+        const pad = n => String(n).padStart(2, '0');
+
+        if (full) return `${h > 0 ? h + ':' : ''}${pad(m)}:${pad(s)}.${pad(cs)}`;
+        if (h > 0) return { main: `${h}:${pad(m)}:${pad(s)}`, ms: pad(cs) };
+        return { main: `${pad(m)}:${pad(s)}`, ms: pad(cs) };
+    }
+
+    function renderTime() {
+        const t = formatTime(elapsed);
+        document.getElementById('timeDisplay').innerHTML = `${t.main}<span class="ms">.${t.ms}</span>`;
+    }
+
+    function setRingProgress(frac) {
+        const offset = CIRC * (1 - Math.min(1, Math.max(0, frac)));
+        document.getElementById('ringProgress').style.strokeDashoffset = offset;
+    }
+
+    function renderLaps() {
+        const panel = document.getElementById('lapsPanel');
+        const body = document.getElementById('lapsBody');
+        panel.classList.remove('hidden');
+
+        const lapTimes = laps.map(l => l.lap);
+        const best = Math.min(...lapTimes);
+        const worst = Math.max(...lapTimes);
+
+        body.innerHTML = [...laps].reverse().map((l, ri) => {
+            const i = laps.length - 1 - ri;
+            const cls = lapTimes.length > 2 ? (l.lap === best ? 'lap-best' : l.lap === worst ? 'lap-worst' : '') : '';
+            const barPct = (l.lap / worst * 100).toFixed(0);
+            return `<div class="lap-row">
+                <span class="lap-num">#${i + 1}</span>
+                <span class="lap-time ${cls}">${formatTime(l.lap, true)}</span>
+                <span class="lap-delta">${formatTime(l.total, true)}</span>
+                <div><div class="lap-bar" style="width:${barPct}%;${cls === 'lap-best' ? 'background:var(--green)' : cls === 'lap-worst' ? 'background:var(--pink)' : ''}"></div></div>
+            </div>`;
+        }).join('');
+
+        // Stats
+        const statsBar = document.getElementById('statsBar');
+        statsBar.classList.remove('hidden');
+        const avg = lapTimes.reduce((a,b)=>a+b,0) / lapTimes.length;
+        document.getElementById('statTotal').textContent = formatTime(elapsed, true);
+        document.getElementById('statAvg').textContent = formatTime(avg, true);
+        document.getElementById('statBest').textContent = formatTime(best, true);
+        document.getElementById('statLaps').textContent = laps.length;
+    }
+
+    // ── Particles ─────────────────────────────────────────
+    function spawnParticles() {
+        const container = document.getElementById('particles');
+        for (let i = 0; i < 12; i++) {
+            const p = document.createElement('div');
+            p.className = 'particle';
+            const angle = Math.random() * Math.PI * 2;
+            const dist = 100 + Math.random() * 40;
+            const x = 150 + Math.cos(angle) * dist;
+            const y = 150 + Math.sin(angle) * dist;
+            p.style.left = '150px'; p.style.top = '150px';
+            p.style.background = neonColor;
+            container.appendChild(p);
+
+            p.animate([
+                { opacity: 1, transform: 'translate(0,0) scale(1)' },
+                { opacity: 0, transform: `translate(${x-150}px,${y-150}px) scale(0)` }
+            ], { duration: 600 + Math.random() * 400, easing: 'ease-out' });
+
+            setTimeout(() => p.remove(), 1100);
+        }
+    }
+
+    // ── Keyboard shortcuts ────────────────────────────────
+    document.addEventListener('keydown', e => {
+        if (e.target.tagName === 'INPUT') return;
+        if (e.code === 'Space') { e.preventDefault(); doStartPause(); }
+        if (e.code === 'KeyL') doLap();
+        if (e.code === 'KeyR') doReset();
+    });
+
+    // Init
+    renderTime();
+    setRingProgress(0);
+    </script>
+</body>
+</html>
